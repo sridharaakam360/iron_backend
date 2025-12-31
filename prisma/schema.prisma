@@ -1,0 +1,274 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// Store model for multi-tenant support
+model Store {
+  id                    String       @id @default(uuid())
+  name                  String
+  email                 String       @unique
+  phone                 String
+  address               String?      @db.Text
+  city                  String?
+  state                 String?
+  pincode               String?
+  gstNumber             String?
+  isApproved            Boolean      @default(false)
+  isActive              Boolean      @default(true)
+  deactivationReason    String?      @db.Text
+  deactivatedAt         DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  users            User[]
+  customers        Customer[]
+  bills            Bill[]
+  categories       Category[]
+  settings         StoreSetting[]
+  subscriptions    Subscription[]
+
+  @@index([email])
+  @@index([isApproved])
+  @@map("stores")
+}
+
+// User model for authentication
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(ADMIN)
+  storeId   String?
+  store     Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([storeId])
+  @@map("users")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+}
+
+// Customer model
+model Customer {
+  id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  email     String?
+  address   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bills Bill[]
+
+  @@unique([storeId, phone])
+  @@index([storeId])
+  @@index([phone])
+  @@index([name])
+  @@map("customers")
+}
+
+// Category model for items
+model Category {
+  id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  icon      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  billItems BillItem[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@map("categories")
+}
+
+// Bill model
+model Bill {
+  id           String     @id @default(uuid())
+  storeId      String
+  store        Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  billNumber   String
+  customerId   String
+  customer     Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  totalAmount  Decimal    @db.Decimal(10, 2)
+  status       BillStatus @default(PENDING)
+  notes        String?    @db.Text
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  completedAt  DateTime?
+
+  items        BillItem[]
+  notifications Notification[]
+
+  @@unique([storeId, billNumber])
+  @@index([storeId])
+  @@index([customerId])
+  @@index([billNumber])
+  @@index([status])
+  @@index([createdAt])
+  @@map("bills")
+}
+
+enum BillStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+// BillItem model (junction table with additional fields)
+model BillItem {
+  id         String   @id @default(uuid())
+  billId     String
+  bill       Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  quantity   Int
+  price      Decimal  @db.Decimal(10, 2)
+  subtotal   Decimal  @db.Decimal(10, 2)
+  createdAt  DateTime @default(now())
+
+  @@index([billId])
+  @@index([categoryId])
+  @@map("bill_items")
+}
+
+// Notification model
+model Notification {
+  id        String           @id @default(uuid())
+  billId    String
+  bill      Bill             @relation(fields: [billId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  status    NotificationStatus @default(PENDING)
+  recipient String
+  message   String           @db.Text
+  sentAt    DateTime?
+  error     String?          @db.Text
+  createdAt DateTime         @default(now())
+
+  @@index([billId])
+  @@index([status])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SMS
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// Settings model (key-value store)
+model Setting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
+}
+
+// Store-specific settings
+model StoreSetting {
+  id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  key       String
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, key])
+  @@index([storeId])
+  @@map("store_settings")
+}
+
+// Audit log model
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  changes   String?  @db.Text
+  ipAddress String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Subscription model for store subscriptions
+model Subscription {
+  id              String             @id @default(uuid())
+  storeId         String
+  store           Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  plan            SubscriptionPlan   @default(FREE)
+  status          SubscriptionStatus @default(ACTIVE)
+  startDate       DateTime           @default(now())
+  endDate         DateTime
+  renewalDate     DateTime
+  amount          Decimal            @db.Decimal(10, 2)
+  billingCycle    BillingCycle       @default(MONTHLY)
+  autoRenew       Boolean            @default(true)
+  cancelledAt     DateTime?
+  cancelReason    String?            @db.Text
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([storeId])
+  @@index([status])
+  @@index([renewalDate])
+  @@map("subscriptions")
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+  CUSTOM
+}
