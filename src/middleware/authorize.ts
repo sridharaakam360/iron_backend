@@ -4,8 +4,8 @@ import { AppError } from './errorHandler';
 
 type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE';
 
-export const authorize = (roles: UserRole[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+export const authorize = (roles: string[] = []) => {
+  return (req: AuthRequest, _res: Response, next: NextFunction) => {
     if (!req.user) {
       throw new AppError('Authentication required', 401);
     }

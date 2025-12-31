@@ -8,7 +8,7 @@ const customerService = new CustomerService();
 export class CustomerController {
   async createCustomer(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
-      const customer = await customerService.createCustomer(req.body);
+      const customer = await customerService.createCustomer(req.body, req.user!.storeId!);
       ApiResponseUtil.created(res, customer, 'Customer created successfully');
     } catch (error) {
       next(error);
@@ -20,6 +20,7 @@ export class CustomerController {
       const { search, page, limit } = req.query;
 
       const result = await customerService.getCustomers(
+        req.user!.storeId!,
         search as string,
         page ? parseInt(page as string) : undefined,
         limit ? parseInt(limit as string) : undefined

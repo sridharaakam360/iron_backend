@@ -28,7 +28,7 @@ export class CustomerService {
     return customer;
   }
 
-  async getCustomers(storeId: string, search?: string) {
+  async getCustomers(storeId: string, search?: string, page: number = 1, limit: number = 10) {
     const where: any = { storeId };
 
     if (search) {
@@ -39,12 +39,24 @@ export class CustomerService {
       ];
     }
 
-    const customers = await Customer.findAll({
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Customer.findAndCountAll({
       where,
+      limit,
+      offset,
       order: [['name', 'ASC']],
     });
 
-    return customers;
+    return {
+      customers: rows,
+      pagination: {
+        page,
+        limit,
+        total: count,
+        pages: Math.ceil(count / limit),
+      },
+    };
   }
 
   async getCustomerById(id: string) {

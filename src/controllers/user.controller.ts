@@ -22,12 +22,12 @@ export class UserController {
         order: [['createdAt', 'DESC']],
       });
 
-      res.json({
+      return res.json({
         success: true,
         data: users,
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
@@ -72,13 +72,13 @@ export class UserController {
       const employeeData = employee.toJSON();
       delete (employeeData as any).password;
 
-      res.status(201).json({
+      return res.status(201).json({
         success: true,
         message: 'Employee created successfully',
         data: employeeData,
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
@@ -118,13 +118,13 @@ export class UserController {
       const userData = user.toJSON();
       delete (userData as any).password;
 
-      res.json({
+      return res.json({
         success: true,
         message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`,
         data: userData,
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 
@@ -152,12 +152,12 @@ export class UserController {
 
       await user.destroy();
 
-      res.json({
+      return res.json({
         success: true,
         message: 'Employee deleted successfully',
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 }

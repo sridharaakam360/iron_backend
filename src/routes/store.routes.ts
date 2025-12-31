@@ -8,7 +8,7 @@ import { validate } from '../middleware/validator';
 const router = Router();
 
 // Test endpoint to verify connection
-router.get('/test', (req, res) => {
+router.get('/test', (_req, res) => {
   console.log('✅ TEST endpoint hit!');
   res.json({ success: true, message: 'Store routes working!' });
 });

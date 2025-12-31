@@ -153,6 +153,20 @@ export class StoreService {
     return store;
   }
 
+  async rejectStore(id: string) {
+    const store = await Store.findByPk(id);
+
+    if (!store) {
+      throw new AppError('Store not found', 404);
+    }
+
+    // Assuming reject means deleting the store or marking as unapproved
+    // This logic depends on requirements. For now, let's delete it or disable it.
+    // If it's a new registration, rejection usually means deletion.
+    await store.destroy();
+    return { message: 'Store rejected' };
+  }
+
   async toggleStoreStatus(id: string, isActive: boolean, reason?: string) {
     const store = await Store.findByPk(id);
 
@@ -208,3 +222,5 @@ export class StoreService {
     };
   }
 }
+
+export const storeService = new StoreService();

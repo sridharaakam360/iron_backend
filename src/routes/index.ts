@@ -21,7 +21,7 @@ router.use('/customers', customerRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/notifications', notificationRoutes);
 
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({
     success: true,
     message: 'Server is healthy',

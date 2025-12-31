@@ -17,9 +17,9 @@ export class AppError extends Error {
 
 export const errorHandler = (
   err: Error | AppError,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   logger.error('Error occurred:', err);
 
@@ -48,6 +48,14 @@ export const errorHandler = (
   } else {
     ApiResponseUtil.serverError(res);
   }
+};
+
+export const handleSequelizeError = (err: any, _req: Request, res: Response, next: NextFunction) => {
+  if (err.name === 'SequelizeUniqueConstraintError') {
+    ApiResponseUtil.error(res, 'Duplicate entry', 400);
+    return;
+  }
+  next(err);
 };
 
 export const notFoundHandler = (req: Request, res: Response): void => {

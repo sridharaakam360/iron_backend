@@ -12,10 +12,10 @@ export class StoreController {
         storeEmail: req.body.storeEmail,
       });
 
-      const result = await storeService.registerStore(req.body);
+      const result = await storeService.createStore(req.body);
 
       console.log('🟢 [CONTROLLER] Registration successful, sending response');
-      ApiResponseUtil.created(res, result, result.message);
+      ApiResponseUtil.created(res, result, 'Store registered successfully. Please wait for approval.');
     } catch (error) {
       console.log('🔴 [CONTROLLER] Registration error:', error);
       next(error);
@@ -34,7 +34,7 @@ export class StoreController {
         filters.search = search as string;
       }
 
-      const stores = await storeService.getAllStores(filters);
+      const stores = await storeService.getStores(filters);
       ApiResponseUtil.success(res, stores);
     } catch (error) {
       next(error);
@@ -53,7 +53,7 @@ export class StoreController {
   async approveStore(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await storeService.approveStore(req.params.id);
-      ApiResponseUtil.success(res, result, result.message);
+      ApiResponseUtil.success(res, result, 'Store approved successfully');
     } catch (error) {
       next(error);
     }
@@ -104,7 +104,7 @@ export class StoreController {
     try {
       const storeId = req.user?.storeId!;
       const result = await storeService.updateStoreSettings(storeId, req.body);
-      ApiResponseUtil.success(res, result, result.message);
+      ApiResponseUtil.success(res, result, 'Store settings updated successfully');
     } catch (error) {
       next(error);
     }

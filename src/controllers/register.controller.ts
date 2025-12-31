@@ -64,7 +64,7 @@ export const registerStore = async (req: Request, res: Response) => {
 
     await transaction.commit();
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Store registration successful. Awaiting approval.',
       data: {
@@ -83,7 +83,7 @@ export const registerStore = async (req: Request, res: Response) => {
       });
     }
 
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Registration failed',
       error: error.message,
