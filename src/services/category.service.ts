@@ -1,16 +1,15 @@
-import { prisma } from '../config/database';
+import { Category } from '../models/Category';
+import { BillItem } from '../models/BillItem';
 import { AppError } from '../middleware/errorHandler';
 import { CategoryCreateInput, CategoryUpdateInput } from '../types';
-import { Prisma } from '../generated/prisma';
+import { Op } from 'sequelize';
 
 export class CategoryService {
   async createCategory(input: CategoryCreateInput, storeId: string) {
-    const existingCategory = await prisma.category.findUnique({
+    const existingCategory = await Category.findOne({
       where: {
-        storeId_name: {
-          storeId,
-          name: input.name,
-        },
+        storeId,
+        name: input.name,
       },
     });
 
@@ -18,57 +17,39 @@ export class CategoryService {
       throw new AppError('Category with this name already exists in your store', 400);
     }
 
-    const category = await prisma.category.create({
-      data: {
-        storeId,
-        name: input.name,
-        price: new Prisma.Decimal(input.price),
-        icon: input.icon,
-      },
-    });
+    const category = await Category.create({
+      storeId,
+      name: input.name,
+      price: input.price,
+      icon: input.icon,
+    } as any);
 
     return category;
   }
 
-  async getCategories(storeId: string, includeInactive = false) {
+  async getCategories(storeId: string, onlyActive = false) {
     const where: any = { storeId };
-
-    if (!includeInactive) {
+    if (onlyActive) {
       where.isActive = true;
     }
 
-    const categories = await prisma.category.findMany({
+    const categories = await Category.findAll({
       where,
-      orderBy: { name: 'asc' },
-      include: {
-        _count: {
-          select: { billItems: true },
-        },
-      },
+      order: [['name', 'ASC']],
     });
 
     return categories;
   }
 
   async getCategoryById(id: string) {
-    const category = await prisma.category.findUnique({
-      where: { id },
-      include: {
-        billItems: {
-          include: {
-            bill: {
-              include: {
-                customer: true,
-              },
-            },
-          },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-        _count: {
-          select: { billItems: true },
-        },
-      },
+    const category = await Category.findByPk(id, {
+      include: [
+        {
+          model: BillItem,
+          limit: 10,
+          order: [['createdAt', 'DESC']],
+        }
+      ]
     });
 
     if (!category) {
@@ -79,22 +60,19 @@ export class CategoryService {
   }
 
   async updateCategory(id: string, input: CategoryUpdateInput) {
-    const category = await prisma.category.findUnique({
-      where: { id },
-    });
+    const category = await Category.findByPk(id);
 
     if (!category) {
       throw new AppError('Category not found', 404);
     }
 
     if (input.name && input.name !== category.name) {
-      const existingCategory = await prisma.category.findUnique({
+      const existingCategory = await Category.findOne({
         where: {
-          storeId_name: {
-            storeId: category.storeId,
-            name: input.name,
-          },
-        },
+          storeId: category.storeId,
+          name: input.name,
+          id: { [Op.ne]: id }
+        }
       });
 
       if (existingCategory) {
@@ -102,46 +80,24 @@ export class CategoryService {
       }
     }
 
-    const updateData: any = {};
-
-    if (input.name) updateData.name = input.name;
-    if (input.price !== undefined) updateData.price = new Prisma.Decimal(input.price);
-    if (input.icon !== undefined) updateData.icon = input.icon;
-    if (input.isActive !== undefined) updateData.isActive = input.isActive;
-
-    const updatedCategory = await prisma.category.update({
-      where: { id },
-      data: updateData,
-    });
-
-    return updatedCategory;
+    await category.update(input);
+    return category;
   }
 
   async deleteCategory(id: string) {
-    const category = await prisma.category.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { billItems: true },
-        },
-      },
-    });
+    const category = await Category.findByPk(id);
 
     if (!category) {
       throw new AppError('Category not found', 404);
     }
 
-    if (category._count.billItems > 0) {
-      throw new AppError(
-        'Cannot delete category that has been used in bills. Consider deactivating it instead.',
-        400
-      );
+    // Check if category is used in any bills
+    const count = await BillItem.count({ where: { categoryId: id } });
+    if (count > 0) {
+      throw new AppError('Cannot delete category because it is used in bills', 400);
     }
 
-    await prisma.category.delete({
-      where: { id },
-    });
-
+    await category.destroy();
     return { message: 'Category deleted successfully' };
   }
 }

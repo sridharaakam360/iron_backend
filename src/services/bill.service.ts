@@ -1,7 +1,11 @@
-import { prisma } from '../config/database';
+import { Bill, BillStatus } from '../models/Bill';
+import { BillItem } from '../models/BillItem';
+import { Category } from '../models/Category';
+import { Customer } from '../models/Customer';
 import { AppError } from '../middleware/errorHandler';
 import { BillCreateInput, BillUpdateInput, DashboardStats } from '../types';
-import { Prisma } from '../generated/prisma';
+import { Op } from 'sequelize';
+import { sequelize } from '../config/database';
 
 export class BillService {
   async generateBillNumber(storeId: string): Promise<string> {
@@ -12,16 +16,14 @@ export class BillService {
 
     const prefix = `BILL-${year}${month}${day}`;
 
-    const lastBill = await prisma.bill.findFirst({
+    const lastBill = await Bill.findOne({
       where: {
         storeId,
         billNumber: {
-          startsWith: prefix,
+          [Op.like]: `${prefix}%`,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      order: [['createdAt', 'DESC']],
     });
 
     if (!lastBill) {
@@ -34,86 +36,85 @@ export class BillService {
   }
 
   async createBill(input: BillCreateInput, storeId: string) {
-    let customer = await prisma.customer.findUnique({
-      where: {
-        storeId_phone: {
-          storeId,
-          phone: input.customerPhone,
-        }
-      },
-    });
+    const transaction = await sequelize.transaction();
 
-    if (!customer) {
-      customer = await prisma.customer.create({
-        data: {
+    try {
+      let customer = await Customer.findOne({
+        where: { storeId, phone: input.customerPhone },
+        transaction,
+      });
+
+      if (!customer) {
+        customer = await Customer.create({
           storeId,
           name: input.customerName,
           phone: input.customerPhone,
           email: input.customerEmail,
           address: input.customerAddress,
-        },
-      });
-    }
-
-    const billNumber = await this.generateBillNumber(storeId);
-
-    let totalAmount = new Prisma.Decimal(0);
-    const billItemsData = [];
-
-    for (const item of input.items) {
-      if (item.quantity <= 0) continue;
-
-      const category = await prisma.category.findUnique({
-        where: { id: item.categoryId },
-      });
-
-      if (!category || !category.isActive) {
-        throw new AppError(`Category not found or inactive`, 400);
+        } as any, { transaction });
       }
 
-      // Verify category belongs to the same store
-      if (category.storeId !== storeId) {
-        throw new AppError(`Category does not belong to your store`, 403);
+      const billNumber = await this.generateBillNumber(storeId);
+
+      let totalAmount = 0;
+      const billItemsData: any[] = [];
+
+      for (const item of input.items) {
+        if (item.quantity <= 0) continue;
+
+        const category = await Category.findByPk(item.categoryId, { transaction });
+
+        if (!category || !category.isActive) {
+          throw new AppError(`Category not found or inactive`, 400);
+        }
+
+        if (category.storeId !== storeId) {
+          throw new AppError(`Category does not belong to your store`, 403);
+        }
+
+        const subtotal = Number(category.price) * item.quantity;
+        totalAmount += subtotal;
+
+        billItemsData.push({
+          categoryId: item.categoryId,
+          quantity: item.quantity,
+          price: category.price,
+          subtotal,
+        });
       }
 
-      const subtotal = category.price.mul(item.quantity);
-      totalAmount = totalAmount.add(subtotal);
+      if (billItemsData.length === 0) {
+        throw new AppError('At least one item is required', 400);
+      }
 
-      billItemsData.push({
-        categoryId: item.categoryId,
-        quantity: item.quantity,
-        price: category.price,
-        subtotal,
-      });
-    }
-
-    if (billItemsData.length === 0) {
-      throw new AppError('At least one item is required', 400);
-    }
-
-    const bill = await prisma.bill.create({
-      data: {
+      const bill = await Bill.create({
         storeId,
         billNumber,
         customerId: customer.id,
         totalAmount,
-        status: 'PENDING',
+        status: BillStatus.PENDING,
         notes: input.notes,
-        items: {
-          create: billItemsData,
-        },
-      },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            category: true,
-          },
-        },
-      },
-    });
+      }, { transaction });
 
-    return bill;
+      await BillItem.bulkCreate(
+        billItemsData.map(item => ({ ...item, billId: bill.id })),
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      const createdBill = await Bill.findByPk(bill.id, {
+        include: [
+          { model: Customer },
+          { model: BillItem, include: [Category] }
+        ]
+      });
+
+      return createdBill;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 
   async getBills(filters?: {
@@ -127,11 +128,10 @@ export class BillService {
   }) {
     const page = filters?.page || 1;
     const limit = filters?.limit || 20;
-    const skip = (page - 1) * limit;
+    const offset = (page - 1) * limit;
 
     const where: any = {};
 
-    // Filter by store ID for store admins and employees
     if (filters?.storeId) {
       where.storeId = filters.storeId;
     }
@@ -141,42 +141,34 @@ export class BillService {
     }
 
     if (filters?.search) {
-      where.OR = [
-        { billNumber: { contains: filters.search } },
-        { customer: { name: { contains: filters.search } } },
-        { customer: { phone: { contains: filters.search } } },
+      where[Op.or] = [
+        { billNumber: { [Op.like]: `%${filters.search}%` } },
+        { '$customer.name$': { [Op.like]: `%${filters.search}%` } },
+        { '$customer.phone$': { [Op.like]: `%${filters.search}%` } },
       ];
     }
 
     if (filters?.startDate || filters?.endDate) {
       where.createdAt = {};
       if (filters.startDate) {
-        where.createdAt.gte = filters.startDate;
+        where.createdAt[Op.gte] = filters.startDate;
       }
       if (filters.endDate) {
-        where.createdAt.lte = filters.endDate;
+        where.createdAt[Op.lte] = filters.endDate;
       }
     }
 
-    const [bills, total] = await Promise.all([
-      prisma.bill.findMany({
-        where,
-        include: {
-          customer: true,
-          items: {
-            include: {
-              category: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        skip,
-        take: limit,
-      }),
-      prisma.bill.count({ where }),
-    ]);
+    const { rows: bills, count: total } = await Bill.findAndCountAll({
+      where,
+      include: [
+        { model: Customer },
+        { model: BillItem, include: [Category] }
+      ],
+      order: [['createdAt', 'DESC']],
+      limit,
+      offset,
+      distinct: true, // Important when using includes with findAndCountAll
+    });
 
     return {
       bills,
@@ -190,17 +182,12 @@ export class BillService {
   }
 
   async getBillById(id: string) {
-    const bill = await prisma.bill.findUnique({
-      where: { id },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            category: true,
-          },
-        },
-        notifications: true,
-      },
+    const bill = await Bill.findByPk(id, {
+      include: [
+        { model: Customer },
+        { model: BillItem, include: [Category] },
+        { association: 'notifications' }
+      ],
     });
 
     if (!bill) {
@@ -211,9 +198,7 @@ export class BillService {
   }
 
   async updateBill(id: string, input: BillUpdateInput) {
-    const bill = await prisma.bill.findUnique({
-      where: { id },
-    });
+    const bill = await Bill.findByPk(id);
 
     if (!bill) {
       throw new AppError('Bill not found', 404);
@@ -232,34 +217,19 @@ export class BillService {
       updateData.notes = input.notes;
     }
 
-    const updatedBill = await prisma.bill.update({
-      where: { id },
-      data: updateData,
-      include: {
-        customer: true,
-        items: {
-          include: {
-            category: true,
-          },
-        },
-      },
-    });
+    await bill.update(updateData);
 
-    return updatedBill;
+    return await this.getBillById(id);
   }
 
   async deleteBill(id: string) {
-    const bill = await prisma.bill.findUnique({
-      where: { id },
-    });
+    const bill = await Bill.findByPk(id);
 
     if (!bill) {
       throw new AppError('Bill not found', 404);
     }
 
-    await prisma.bill.delete({
-      where: { id },
-    });
+    await bill.destroy();
 
     return { message: 'Bill deleted successfully' };
   }
@@ -274,61 +244,57 @@ export class BillService {
     const monthAgo = new Date(today);
     monthAgo.setDate(monthAgo.getDate() - 30);
 
-    // Base where clause for store filtering
     const baseWhere: any = storeId ? { storeId } : {};
 
-    const [totalBills, pendingBills, completedBills, todayBills, weeklyBills, monthlyBills, recentBills] =
-      await Promise.all([
-        prisma.bill.count({ where: baseWhere }),
-        prisma.bill.count({ where: { ...baseWhere, status: 'PENDING' } }),
-        prisma.bill.count({ where: { ...baseWhere, status: 'COMPLETED' } }),
-        prisma.bill.findMany({
-          where: {
-            ...baseWhere,
-            createdAt: { gte: today },
-          },
-        }),
-        prisma.bill.findMany({
-          where: {
-            ...baseWhere,
-            createdAt: { gte: weekAgo },
-            status: 'COMPLETED',
-          },
-        }),
-        prisma.bill.findMany({
-          where: {
-            ...baseWhere,
-            createdAt: { gte: monthAgo },
-            status: 'COMPLETED',
-          },
-        }),
-        prisma.bill.findMany({
-          where: baseWhere,
-          take: 5,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            customer: true,
-            items: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        }),
-      ]);
+    const totalBills = await Bill.count({ where: baseWhere });
+    const pendingBills = await Bill.count({ where: { ...baseWhere, status: BillStatus.PENDING } });
+    const completedBills = await Bill.count({ where: { ...baseWhere, status: BillStatus.COMPLETED } });
+
+    const todayBills = await Bill.findAll({
+      where: {
+        ...baseWhere,
+        createdAt: { [Op.gte]: today },
+      },
+    });
+
+    const weeklyBills = await Bill.findAll({
+      where: {
+        ...baseWhere,
+        createdAt: { [Op.gte]: weekAgo },
+        status: BillStatus.COMPLETED,
+      },
+    });
+
+    const monthlyBills = await Bill.findAll({
+      where: {
+        ...baseWhere,
+        createdAt: { [Op.gte]: monthAgo },
+        status: BillStatus.COMPLETED,
+      },
+    });
+
+    const recentBills = await Bill.findAll({
+      where: baseWhere,
+      limit: 5,
+      order: [['createdAt', 'DESC']],
+      include: [
+        { model: Customer },
+        { model: BillItem, include: [Category] }
+      ],
+    });
 
     const todayRevenue = todayBills.reduce(
-      (sum, bill) => sum + parseFloat(bill.totalAmount.toString()),
+      (sum, bill) => sum + Number(bill.totalAmount),
       0
     );
 
     const weeklyRevenue = weeklyBills.reduce(
-      (sum, bill) => sum + parseFloat(bill.totalAmount.toString()),
+      (sum, bill) => sum + Number(bill.totalAmount),
       0
     );
 
     const monthlyRevenue = monthlyBills.reduce(
-      (sum, bill) => sum + parseFloat(bill.totalAmount.toString()),
+      (sum, bill) => sum + Number(bill.totalAmount),
       0
     );
 
@@ -339,7 +305,7 @@ export class BillService {
       todayRevenue,
       weeklyRevenue,
       monthlyRevenue,
-      recentBills,
+      recentBills: recentBills as any,
     };
   }
 }

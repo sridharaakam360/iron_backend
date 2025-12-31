@@ -1,21 +1,19 @@
 import PDFDocument from 'pdfkit';
-import { prisma } from '../config/database';
+import { Bill } from '../models/Bill';
+import { Customer } from '../models/Customer';
+import { BillItem } from '../models/BillItem';
+import { Category } from '../models/Category';
 import { AppError } from '../middleware/errorHandler';
 import { env } from '../config/env';
 import { Response } from 'express';
 
 export class PdfService {
   async generateBillPdf(billId: string, res: Response) {
-    const bill = await prisma.bill.findUnique({
-      where: { id: billId },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            category: true,
-          },
-        },
-      },
+    const bill = await Bill.findByPk(billId, {
+      include: [
+        { model: Customer },
+        { model: BillItem, include: [Category] },
+      ],
     });
 
     if (!bill) {

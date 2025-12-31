@@ -13,20 +13,20 @@ export class JwtUtil {
         storeId: user.storeId,
       },
       env.JWT_SECRET,
-      { expiresIn: env.JWT_EXPIRE_TIME }
+      { expiresIn: env.JWT_EXPIRE_TIME as any }
     );
   }
 
   static generateRefreshToken(userId: string): string {
     return jwt.sign({ id: userId }, env.JWT_REFRESH_SECRET, {
-      expiresIn: env.JWT_REFRESH_EXPIRE_TIME,
+      expiresIn: env.JWT_REFRESH_EXPIRE_TIME as any,
     });
   }
 
   static verifyAccessToken(token: string): AuthUser {
     try {
-      const decoded = jwt.verify(token, env.JWT_SECRET) as AuthUser;
-      return decoded;
+      const decoded = jwt.verify(token, env.JWT_SECRET) as any;
+      return decoded as AuthUser;
     } catch (error) {
       throw new Error('Invalid or expired token');
     }
@@ -34,8 +34,8 @@ export class JwtUtil {
 
   static verifyRefreshToken(token: string): { id: string } {
     try {
-      const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as { id: string };
-      return decoded;
+      const decoded = jwt.verify(token, env.JWT_REFRESH_SECRET) as any;
+      return decoded as { id: string };
     } catch (error) {
       throw new Error('Invalid or expired refresh token');
     }

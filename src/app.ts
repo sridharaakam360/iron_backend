@@ -4,11 +4,9 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
 import { env } from './config/env';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { logger } from './utils/logger';
 
 const app: Application = express();
 
@@ -41,7 +39,7 @@ app.use(cookieParser());
 
 // app.use('/api', limiter);
 
-app.get('/', (req, res) => {
+app.get('/', (_req, res) => {
   res.json({
     success: true,
     message: `${env.APP_NAME} API Server`,

@@ -1,42 +1,39 @@
-import { PrismaClient } from '../generated/prisma';
+import { Sequelize } from 'sequelize-typescript';
 import { env } from './env';
-import { PrismaMariaDb } from '@prisma/adapter-mariadb';
+import * as models from '../models';
 
-const prismaClientSingleton = () => {
-  // Parse DATABASE_URL to extract connection details
-  // Format: mysql://user:password@host:port/database
-  const url = new URL(env.DATABASE_URL);
-
-  const adapter = new PrismaMariaDb({
-    host: url.hostname,
-    user: url.username,
-    password: url.password,
-    database: url.pathname.slice(1), // Remove leading '/'
-    port: parseInt(url.port) || 3306,
-    connectionLimit: 10,
-    connectTimeout: 10000, // 10 seconds
-    acquireTimeout: 10000, // 10 seconds
-  });
-
-  return new PrismaClient({
-    adapter,
-    log: env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
-    errorFormat: 'pretty',
-  });
-};
-
-declare global {
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
-}
-
-export const prisma = globalThis.prisma ?? prismaClientSingleton();
-
-if (env.NODE_ENV !== 'production') globalThis.prisma = prisma;
+export const sequelize = new Sequelize({
+  dialect: 'mysql',
+  host: env.DB_HOST,
+  username: env.DB_USER,
+  password: env.DB_PASS,
+  database: env.DB_NAME,
+  port: env.DB_PORT,
+  models: Object.values(models).filter(m => typeof m === 'function'),
+  logging: env.NODE_ENV === 'development' ? console.log : false,
+  pool: {
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
+  },
+  define: {
+    timestamps: true,
+    underscored: false, // Prisma used camelCase for field names by default
+  }
+});
 
 export const connectDatabase = async (): Promise<void> => {
   try {
-    await prisma.$connect();
-    console.log('✅ Database connected successfully');
+    await sequelize.authenticate();
+    console.log('✅ Database connected successfully (Sequelize)');
+
+    // In development/test, we might want to sync. 
+    // In production, use migrations.
+    if (env.NODE_ENV !== 'production') {
+      await sequelize.sync({ alter: true });
+      console.log('✅ Database models synced');
+    }
   } catch (error) {
     console.error('❌ Database connection failed:', error);
     process.exit(1);
@@ -44,10 +41,11 @@ export const connectDatabase = async (): Promise<void> => {
 };
 
 export const disconnectDatabase = async (): Promise<void> => {
-  await prisma.$disconnect();
+  await sequelize.close();
   console.log('Database disconnected');
 };
 
 process.on('beforeExit', async () => {
   await disconnectDatabase();
 });
+

@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { prisma } from '../config/database';
+import { User, UserRole } from '../models/User';
 import bcrypt from 'bcryptjs';
 import { AuthRequest } from '../types';
 
@@ -16,17 +16,10 @@ export class UserController {
         });
       }
 
-      const users = await prisma.user.findMany({
+      const users = await User.findAll({
         where: { storeId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
+        attributes: { exclude: ['password'] },
+        order: [['createdAt', 'DESC']],
       });
 
       res.json({
@@ -52,7 +45,7 @@ export class UserController {
       }
 
       // Check if email already exists
-      const existingUser = await prisma.user.findUnique({
+      const existingUser = await User.findOne({
         where: { email },
       });
 
@@ -64,32 +57,25 @@ export class UserController {
       }
 
       // Hash password
-      const hashedPassword = await bcrypt.hash(password, 6);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
       // Create employee
-      const employee = await prisma.user.create({
-        data: {
-          name,
-          email,
-          password: hashedPassword,
-          role: 'EMPLOYEE',
-          storeId,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-          createdAt: true,
-        },
-      });
+      const employee = await User.create({
+        name,
+        email,
+        password: hashedPassword,
+        role: UserRole.EMPLOYEE,
+        storeId,
+        isActive: true,
+      } as any);
+
+      const employeeData = employee.toJSON();
+      delete (employeeData as any).password;
 
       res.status(201).json({
         success: true,
         message: 'Employee created successfully',
-        data: employee,
+        data: employeeData,
       });
     } catch (error) {
       next(error);
@@ -103,7 +89,7 @@ export class UserController {
       const storeId = req.user?.storeId;
 
       // Verify user belongs to the same store
-      const user = await prisma.user.findFirst({
+      const user = await User.findOne({
         where: {
           id,
           storeId,
@@ -126,22 +112,16 @@ export class UserController {
       }
 
       // Toggle status
-      const updatedUser = await prisma.user.update({
-        where: { id },
-        data: { isActive: !user.isActive },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-          isActive: true,
-        },
-      });
+      user.isActive = !user.isActive;
+      await user.save();
+
+      const userData = user.toJSON();
+      delete (userData as any).password;
 
       res.json({
         success: true,
-        message: `User ${updatedUser.isActive ? 'activated' : 'deactivated'} successfully`,
-        data: updatedUser,
+        message: `User ${user.isActive ? 'activated' : 'deactivated'} successfully`,
+        data: userData,
       });
     } catch (error) {
       next(error);
@@ -155,11 +135,11 @@ export class UserController {
       const storeId = req.user?.storeId;
 
       // Verify user belongs to the same store and is an employee
-      const user = await prisma.user.findFirst({
+      const user = await User.findOne({
         where: {
           id,
           storeId,
-          role: 'EMPLOYEE',
+          role: UserRole.EMPLOYEE,
         },
       });
 
@@ -170,9 +150,7 @@ export class UserController {
         });
       }
 
-      await prisma.user.delete({
-        where: { id },
-      });
+      await user.destroy();
 
       res.json({
         success: true,

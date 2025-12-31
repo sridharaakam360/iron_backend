@@ -1,8 +1,11 @@
 import twilio from 'twilio';
 import nodemailer from 'nodemailer';
 import { env } from '../config/env';
-import { prisma } from '../config/database';
-import { NotificationPayload } from '../types';
+import { Notification, NotificationStatus, NotificationType } from '../models/Notification';
+import { Bill } from '../models/Bill';
+import { Customer } from '../models/Customer';
+import { BillItem } from '../models/BillItem';
+import { Category } from '../models/Category';
 import { logger } from '../utils/logger';
 
 export class NotificationService {
@@ -91,17 +94,12 @@ export class NotificationService {
     }
   }
 
-  async sendBillNotification(billId: string, type: 'SMS' | 'EMAIL' = 'SMS') {
-    const bill = await prisma.bill.findUnique({
-      where: { id: billId },
-      include: {
-        customer: true,
-        items: {
-          include: {
-            category: true,
-          },
-        },
-      },
+  async sendBillNotification(billId: string, type: NotificationType = NotificationType.SMS) {
+    const bill = await Bill.findByPk(billId, {
+      include: [
+        { model: Customer },
+        { model: BillItem, include: [Category] },
+      ],
     });
 
     if (!bill) {
@@ -128,12 +126,11 @@ Visit: ${env.APP_URL}
     `.trim();
 
     let success = false;
-    let error = null;
 
-    if (type === 'SMS' && bill.customer.phone) {
+    if (type === NotificationType.SMS && bill.customer.phone) {
       const smsMessage = `${env.APP_NAME}: Bill #${bill.billNumber} ready! Total: ₹${bill.totalAmount}. Thank you!`;
       success = await this.sendSMS(bill.customer.phone, smsMessage);
-    } else if (type === 'EMAIL' && bill.customer.email) {
+    } else if (type === NotificationType.EMAIL && bill.customer.email) {
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #3b82f6;">Bill Ready - ${env.APP_NAME}</h2>
@@ -150,16 +147,16 @@ Visit: ${env.APP_URL}
             </thead>
             <tbody>
               ${bill.items
-                .map(
-                  (item) => `
+          .map(
+            (item) => `
                 <tr>
                   <td style="padding: 10px; border: 1px solid #ddd;">${item.category.name}</td>
                   <td style="padding: 10px; text-align: center; border: 1px solid #ddd;">${item.quantity}</td>
                   <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">₹${item.subtotal}</td>
                 </tr>
               `
-                )
-                .join('')}
+          )
+          .join('')}
             </tbody>
             <tfoot>
               <tr style="background-color: #f3f4f6; font-weight: bold;">
@@ -182,17 +179,15 @@ Visit: ${env.APP_URL}
       );
     }
 
-    const notification = await prisma.notification.create({
-      data: {
-        billId,
-        type,
-        status: success ? 'SENT' : 'FAILED',
-        recipient: type === 'SMS' ? bill.customer.phone : bill.customer.email || '',
-        message,
-        sentAt: success ? new Date() : null,
-        error: success ? null : 'Failed to send notification',
-      },
-    });
+    const notification = await Notification.create({
+      billId,
+      type,
+      status: success ? NotificationStatus.SENT : NotificationStatus.FAILED,
+      recipient: type === NotificationType.SMS ? bill.customer.phone : bill.customer.email || '',
+      message,
+      sentAt: success ? new Date() : null,
+      error: success ? null : 'Failed to send notification',
+    } as any);
 
     return notification;
   }
@@ -203,17 +198,16 @@ Visit: ${env.APP_URL}
       where.billId = billId;
     }
 
-    const notifications = await prisma.notification.findMany({
+    const notifications = await Notification.findAll({
       where,
-      include: {
-        bill: {
-          include: {
-            customer: true,
-          },
+      include: [
+        {
+          model: Bill,
+          include: [{ model: Customer }],
         },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: 50,
     });
 
     return notifications;

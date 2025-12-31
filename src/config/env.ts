@@ -8,6 +8,11 @@ interface EnvConfig {
   PORT: number;
   API_VERSION: string;
   DATABASE_URL: string;
+  DB_HOST: string;
+  DB_USER: string;
+  DB_PASS: string;
+  DB_NAME: string;
+  DB_PORT: number;
   JWT_SECRET: string;
   JWT_REFRESH_SECRET: string;
   JWT_EXPIRE_TIME: string;
@@ -45,6 +50,11 @@ export const env: EnvConfig = {
   PORT: parseInt(getEnvVariable('PORT', '5000'), 10),
   API_VERSION: getEnvVariable('API_VERSION', 'v1'),
   DATABASE_URL: getEnvVariable('DATABASE_URL'),
+  DB_HOST: getEnvVariable('DB_HOST', 'localhost'),
+  DB_USER: getEnvVariable('DB_USER', 'root'),
+  DB_PASS: getEnvVariable('DB_PASS', ''),
+  DB_NAME: getEnvVariable('DB_NAME', 'test_db'),
+  DB_PORT: parseInt(getEnvVariable('DB_PORT', '3306'), 10),
   JWT_SECRET: getEnvVariable('JWT_SECRET'),
   JWT_REFRESH_SECRET: getEnvVariable('JWT_REFRESH_SECRET'),
   JWT_EXPIRE_TIME: getEnvVariable('JWT_EXPIRE_TIME', '24h'),

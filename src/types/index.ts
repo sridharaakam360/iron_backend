@@ -57,6 +57,13 @@ export interface CustomerCreateInput {
   address?: string;
 }
 
+export interface CustomerUpdateInput {
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+}
+
 export interface CategoryCreateInput {
   name: string;
   price: number;
@@ -82,6 +89,25 @@ export interface RegisterInput {
   role?: 'ADMIN' | 'EMPLOYEE';
 }
 
+export interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    storeId?: string;
+    createdAt?: Date;
+  };
+  store?: {
+    id: string;
+    name: string;
+    isActive: boolean;
+    deactivationReason?: string | null;
+  };
+  accessToken: string;
+  refreshToken: string;
+}
+
 export interface NotificationPayload {
   billId: string;
   type: 'SMS' | 'EMAIL' | 'WHATSAPP';
@@ -98,3 +124,4 @@ export interface DashboardStats {
   monthlyRevenue: number;
   recentBills: any[];
 }
+

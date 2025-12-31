@@ -1,13 +1,14 @@
-import { prisma } from '../config/database';
-import { PasswordUtil } from '../utils/password';
-import { JwtUtil } from '../utils/jwt';
+import { User, UserRole } from '../models/User';
+import { Store } from '../models/Store';
 import { AppError } from '../middleware/errorHandler';
 import { LoginInput, RegisterInput, AuthUser } from '../types';
+import { PasswordUtil } from '../utils/password';
+import { JwtUtil } from '../utils/jwt';
 
 export class AuthService {
   async register(input: RegisterInput) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: input.email },
+    const existingUser = await User.findOne({
+      where: { email: input.email }
     });
 
     if (existingUser) {
@@ -16,45 +17,40 @@ export class AuthService {
 
     const hashedPassword = await PasswordUtil.hash(input.password);
 
-    const user = await prisma.user.create({
-      data: {
-        email: input.email,
-        password: hashedPassword,
-        name: input.name,
-        role: input.role || 'ADMIN',
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
-    });
+    const user = await User.create({
+      email: input.email,
+      password: hashedPassword,
+      name: input.name,
+      role: input.role || UserRole.ADMIN,
+    } as any);
 
     const authUser: AuthUser = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: user.role as any,
     };
 
     const accessToken = JwtUtil.generateAccessToken(authUser);
     const refreshToken = JwtUtil.generateRefreshToken(user.id);
 
     return {
-      user,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        createdAt: user.createdAt,
+      },
       accessToken,
       refreshToken,
     };
   }
 
   async login(input: LoginInput) {
-    const user = await prisma.user.findUnique({
+    const user = await User.findOne({
       where: { email: input.email },
-      include: {
-        store: true,
-      },
+      include: [Store]
     });
 
     if (!user) {
@@ -80,7 +76,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: user.role as any,
       storeId: user.storeId || undefined,
     };
 
@@ -106,21 +102,11 @@ export class AuthService {
     };
   }
 
-  async refreshToken(refreshToken: string) {
+  async refreshToken(token: string) {
     try {
-      const decoded = JwtUtil.verifyRefreshToken(refreshToken);
+      const decoded = JwtUtil.verifyRefreshToken(token);
 
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          role: true,
-          isActive: true,
-          storeId: true,
-        },
-      });
+      const user = await User.findByPk(decoded.id);
 
       if (!user || !user.isActive) {
         throw new AppError('User not found or inactive', 401);
@@ -130,7 +116,7 @@ export class AuthService {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
+        role: user.role as any,
         storeId: user.storeId || undefined,
       };
 
@@ -147,17 +133,8 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const user = await User.findByPk(userId, {
+      attributes: ['id', 'email', 'name', 'role', 'isActive', 'createdAt', 'updatedAt']
     });
 
     if (!user) {
@@ -168,50 +145,36 @@ export class AuthService {
   }
 
   async updateProfile(userId: string, data: { name: string }) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await User.findByPk(userId);
 
     if (!user) {
       throw new AppError('User not found', 404);
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name: data.name,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
+    user.name = data.name;
+    await user.save();
 
-    return updatedUser;
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
   }
 
   async changePassword(userId: string, newPassword: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const user = await User.findByPk(userId);
 
     if (!user) {
       throw new AppError('User not found', 404);
     }
 
     const hashedPassword = await PasswordUtil.hash(newPassword);
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        password: hashedPassword,
-      },
-    });
+    user.password = hashedPassword;
+    await user.save();
 
     return true;
   }
