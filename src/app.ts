@@ -7,15 +7,21 @@ import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { logger } from './utils/logger';
 
 const app: Application = express();
 
+// Configure CORS origins (trim whitespace and ignore empty entries)
+const corsOrigins = env.CORS_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean);
 app.use(
   cors({
-    origin: env.CORS_ORIGIN.split(','),
+    origin: corsOrigins,
     credentials: true,
   })
 );
+
+// Log configured CORS origins to help with troubleshooting
+logger.info(`Configured CORS origin(s): ${corsOrigins.join(', ')}`);
 
 app.use(helmet());
 

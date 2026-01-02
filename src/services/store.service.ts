@@ -167,17 +167,20 @@ export class StoreService {
     return { message: 'Store rejected' };
   }
 
-  async toggleStoreStatus(id: string, isActive: boolean, reason?: string) {
+  async toggleStoreStatus(id: string, reason?: string) {
     const store = await Store.findByPk(id);
 
     if (!store) {
       throw new AppError('Store not found', 404);
     }
 
+    // Toggle the current status
+    const newStatus = !store.isActive;
+
     await store.update({
-      isActive,
-      deactivationReason: isActive ? null : reason,
-      deactivatedAt: isActive ? null : new Date(),
+      isActive: newStatus,
+      deactivationReason: newStatus ? null : reason,
+      deactivatedAt: newStatus ? null : new Date(),
     });
 
     return store;
