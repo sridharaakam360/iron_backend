@@ -4,6 +4,7 @@ import { AppError } from '../middleware/errorHandler';
 import { LoginInput, RegisterInput, AuthUser } from '../types';
 import { PasswordUtil } from '../utils/password';
 import { JwtUtil } from '../utils/jwt';
+import { logger } from '../utils/logger';
 
 export class AuthService {
   async register(input: RegisterInput) {
@@ -48,58 +49,64 @@ export class AuthService {
   }
 
   async login(input: LoginInput) {
-    const user = await User.findOne({
-      where: { email: input.email },
-      include: [Store]
-    });
+    try {
+      const user = await User.findOne({
+        where: { email: input.email },
+        include: [Store]
+      });
 
-    if (!user) {
-      throw new AppError('Invalid credentials', 401);
-    }
+      if (!user) {
+        throw new AppError('Invalid credentials', 401);
+      }
 
-    if (!user.isActive) {
-      throw new AppError('Account is deactivated', 403);
-    }
+      if (!user.isActive) {
+        throw new AppError('Account is deactivated', 403);
+      }
 
-    // Check if store is approved (for non-superadmin users)
-    if (user.storeId && user.store && !user.store.isApproved) {
-      throw new AppError('Store is pending approval', 403);
-    }
+      // Check if store is approved (for non-superadmin users)
+      if (user.storeId && user.store && !user.store.isApproved) {
+        throw new AppError('Store is pending approval', 403);
+      }
 
-    const isPasswordValid = await PasswordUtil.compare(input.password, user.password);
+      const isPasswordValid = await PasswordUtil.compare(input.password, user.password);
 
-    if (!isPasswordValid) {
-      throw new AppError('Invalid credentials', 401);
-    }
+      if (!isPasswordValid) {
+        throw new AppError('Invalid credentials', 401);
+      }
 
-    const authUser: AuthUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role as any,
-      storeId: user.storeId || undefined,
-    };
-
-    const accessToken = JwtUtil.generateAccessToken(authUser);
-    const refreshToken = JwtUtil.generateRefreshToken(user.id);
-
-    return {
-      user: {
+      const authUser: AuthUser = {
         id: user.id,
         email: user.email,
         name: user.name,
-        role: user.role,
-        storeId: user.storeId,
-      },
-      store: user.store ? {
-        id: user.store.id,
-        name: user.store.name,
-        isActive: user.store.isActive,
-        deactivationReason: user.store.deactivationReason,
-      } : undefined,
-      accessToken,
-      refreshToken,
-    };
+        role: user.role as any,
+        storeId: user.storeId || undefined,
+      };
+
+      const accessToken = JwtUtil.generateAccessToken(authUser);
+      const refreshToken = JwtUtil.generateRefreshToken(user.id);
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          storeId: user.storeId,
+        },
+        store: user.store ? {
+          id: user.store.id,
+          name: user.store.name,
+          isActive: user.store.isActive,
+          deactivationReason: user.store.deactivationReason,
+        } : undefined,
+        accessToken,
+        refreshToken,
+      };
+    } catch (error) {
+      // Log without including sensitive info
+      logger.error('AuthService.login error', { email: input?.email, error });
+      throw error;
+    }
   }
 
   async refreshToken(token: string) {

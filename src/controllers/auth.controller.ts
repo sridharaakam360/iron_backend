@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../types';
 import { AuthService } from '../services/auth.service';
 import { ApiResponseUtil } from '../utils/response';
+import { logger } from '../utils/logger';
 
 const authService = new AuthService();
 
@@ -17,6 +18,9 @@ export class AuthController {
 
   async login(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
     try {
+      // Debug: log incoming login email for troubleshooting
+      logger.info('AuthController.login request', { email: req.body?.email });
+
       const result = await authService.login(req.body);
       ApiResponseUtil.success(res, result, 'Login successful');
     } catch (error) {

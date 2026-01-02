@@ -1,9 +1,14 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AuthUser } from '../types';
+import { AppError } from '../middleware/errorHandler';
 
 export class JwtUtil {
   static generateAccessToken(user: AuthUser): string {
+    if (!env.JWT_SECRET) {
+      throw new AppError('JWT_SECRET is not configured', 500);
+    }
+
     return jwt.sign(
       {
         id: user.id,
@@ -18,6 +23,10 @@ export class JwtUtil {
   }
 
   static generateRefreshToken(userId: string): string {
+    if (!env.JWT_REFRESH_SECRET) {
+      throw new AppError('JWT_REFRESH_SECRET is not configured', 500);
+    }
+
     return jwt.sign({ id: userId }, env.JWT_REFRESH_SECRET, {
       expiresIn: env.JWT_REFRESH_EXPIRE_TIME as any,
     });
