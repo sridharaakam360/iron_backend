@@ -160,6 +160,50 @@ export class UserController {
       return next(error);
     }
   }
+
+  // Update employee (for ADMIN)
+  async updateEmployee(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { name, password } = req.body;
+      const storeId = req.user?.storeId;
+
+      // Verify user belongs to the same store and is an employee
+      const user = await User.findOne({
+        where: {
+          id,
+          storeId,
+          role: UserRole.EMPLOYEE,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'Employee not found',
+        });
+      }
+
+      if (name) user.name = name;
+      if (password) {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        user.password = hashedPassword;
+      }
+
+      await user.save();
+
+      const userData = user.toJSON();
+      delete (userData as any).password;
+
+      return res.json({
+        success: true,
+        message: 'Employee updated successfully',
+        data: userData,
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
 }
 
 export const userController = new UserController();

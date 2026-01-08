@@ -9,6 +9,7 @@ const router = Router();
 router.get('/', authenticate, authorize(['ADMIN']), userController.getStoreUsers);
 router.post('/', authenticate, authorize(['ADMIN']), userController.createEmployee);
 router.patch('/:id/toggle-status', authenticate, authorize(['ADMIN']), userController.toggleUserStatus);
+router.patch('/:id', authenticate, authorize(['ADMIN']), userController.updateEmployee);
 router.delete('/:id', authenticate, authorize(['ADMIN']), userController.deleteEmployee);
 
 export default router;
