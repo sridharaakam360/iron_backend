@@ -10,11 +10,12 @@ export class CategoryService {
       where: {
         storeId,
         name: input.name,
+        serviceTypeId: input.serviceTypeId || null,
       },
     });
 
     if (existingCategory) {
-      throw new AppError('Category with this name already exists in your store', 400);
+      throw new AppError('Category with this name already exists in this service', 400);
     }
 
     const category = await Category.create({
@@ -22,6 +23,7 @@ export class CategoryService {
       name: input.name,
       price: input.price,
       icon: input.icon,
+      serviceTypeId: input.serviceTypeId,
     } as any);
 
     return category;
@@ -66,17 +68,18 @@ export class CategoryService {
       throw new AppError('Category not found', 404);
     }
 
-    if (input.name && input.name !== category.name) {
+    if (input.name && (input.name !== category.name || input.serviceTypeId !== category.serviceTypeId)) {
       const existingCategory = await Category.findOne({
         where: {
           storeId: category.storeId,
           name: input.name,
+          serviceTypeId: input.serviceTypeId !== undefined ? input.serviceTypeId : category.serviceTypeId,
           id: { [Op.ne]: id }
         }
       });
 
       if (existingCategory) {
-        throw new AppError('Category name already in use in your store', 400);
+        throw new AppError('Category name already in use in this service', 400);
       }
     }
 

@@ -8,6 +8,7 @@ import storeRoutes from './store.routes';
 import registerRoutes from './register.routes';
 import userRoutes from './user.routes';
 import adminRoutes from './admin.routes';
+import serviceTypeRoutes from './serviceType.routes';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use('/admin', adminRoutes); // Super admin routes
 router.use('/bills', billRoutes);
 router.use('/customers', customerRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/service-types', serviceTypeRoutes);
 router.use('/notifications', notificationRoutes);
 
 router.get('/health', (_req, res) => {

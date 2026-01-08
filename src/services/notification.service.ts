@@ -6,6 +6,7 @@ import { Bill } from '../models/Bill';
 import { Customer } from '../models/Customer';
 import { BillItem } from '../models/BillItem';
 import { Category } from '../models/Category';
+import { StoreSetting } from '../models/StoreSetting';
 import { logger } from '../utils/logger';
 
 export class NotificationService {
@@ -128,9 +129,27 @@ Visit: ${env.APP_URL}
     let success = false;
 
     if (type === NotificationType.SMS && bill.customer.phone) {
+      // Check store setting for SMS
+      const smsEnabled = await StoreSetting.findOne({
+        where: { storeId: bill.storeId, key: 'smsNotificationsEnabled' }
+      });
+      if (smsEnabled && smsEnabled.value === 'false') {
+        logger.info(`SMS skipped for store ${bill.storeId}: disabled`);
+        return;
+      }
+
       const smsMessage = `${env.APP_NAME}: Bill #${bill.billNumber} ready! Total: ₹${bill.totalAmount}. Thank you!`;
       success = await this.sendSMS(bill.customer.phone, smsMessage);
     } else if (type === NotificationType.EMAIL && bill.customer.email) {
+      // Check store setting for Email
+      const emailEnabled = await StoreSetting.findOne({
+        where: { storeId: bill.storeId, key: 'emailNotificationsEnabled' }
+      });
+      if (emailEnabled && emailEnabled.value === 'false') {
+        logger.info(`Email skipped for store ${bill.storeId}: disabled`);
+        return;
+      }
+
       const emailHtml = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #3b82f6;">Bill Ready - ${env.APP_NAME}</h2>
@@ -190,6 +209,103 @@ Visit: ${env.APP_URL}
     } as any);
 
     return notification;
+  }
+
+  async sendPaymentConfirmation(billId: string) {
+    const bill = await Bill.findByPk(billId, {
+      include: [{ model: Customer }],
+    });
+
+    if (!bill || !bill.customer.email) return;
+
+    // Check store setting
+    const emailEnabled = await StoreSetting.findOne({
+      where: { storeId: bill.storeId, key: 'emailNotificationsEnabled' }
+    });
+
+    if (emailEnabled && emailEnabled.value === 'false') {
+      logger.info(`Email notification skipped for store ${bill.storeId}: disabled in settings`);
+      return;
+    }
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #3b82f6; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Payment Received</h1>
+        </div>
+        <div style="padding: 24px; color: #374151;">
+          <p>Dear <strong>${bill.customer.name}</strong>,</p>
+          <p>Thank you! We have received your payment for bill <strong>#${bill.billNumber}</strong>.</p>
+          
+          <div style="background-color: #f9fafb; padding: 16px; border-radius: 6px; margin: 20px 0;">
+            <p style="margin: 0; font-size: 14px; color: #6b7280;">Amount Paid</p>
+            <p style="margin: 4px 0 0 0; font-size: 24px; font-weight: bold; color: #111827;">₹${bill.totalAmount}</p>
+          </div>
+
+          <p>Your order is currently in progress. We will notify you once it's ready for collection.</p>
+          <p>Thank you for choosing <strong>${env.APP_NAME}</strong>!</p>
+        </div>
+        <div style="background-color: #f3f4f6; padding: 16px; text-align: center; color: #6b7280; font-size: 12px;">
+          ${env.APP_NAME} | <a href="${env.APP_URL}" style="color: #3b82f6;">${env.APP_URL}</a>
+        </div>
+      </div>
+    `;
+
+    return await this.sendEmail(
+      bill.customer.email,
+      `Payment Confirmation - #${bill.billNumber}`,
+      emailHtml
+    );
+  }
+
+  async sendCollectionReminder(billId: string) {
+    const bill = await Bill.findByPk(billId, {
+      include: [{ model: Customer }, { model: BillItem, include: [Category] }],
+    });
+
+    if (!bill || !bill.customer.email) return;
+
+    // Check store setting
+    const emailEnabled = await StoreSetting.findOne({
+      where: { storeId: bill.storeId, key: 'emailNotificationsEnabled' }
+    });
+
+    if (emailEnabled && emailEnabled.value === 'false') {
+      logger.info(`Email notification skipped for store ${bill.storeId}: disabled in settings`);
+      return;
+    }
+
+    const isPaid = bill.paymentStatus === 'PAID';
+
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+        <div style="background-color: #10b981; padding: 20px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Ready for Collection</h1>
+        </div>
+        <div style="padding: 24px; color: #374151;">
+          <p>Dear <strong>${bill.customer.name}</strong>,</p>
+          <p>Exciting news! Your clothes are ready for collection at <strong>${env.APP_NAME}</strong>.</p>
+          
+          <div style="margin: 20px 0; border: 1px solid #e5e7eb; border-radius: 6px; padding: 16px;">
+            <p style="margin: 0 0 8px 0; font-weight: bold;">Bill #${bill.billNumber}</p>
+            <p style="margin: 0; font-size: 14px;">Status: <span style="color: ${isPaid ? '#10b981' : '#f59e0b'}; font-weight: bold;">${isPaid ? 'PAID' : 'PAYMENT PENDING'}</span></p>
+            ${!isPaid ? `<p style="margin: 8px 0 0 0; font-size: 14px;">Please pay <strong>₹${bill.totalAmount}</strong> at the counter.</p>` : ''}
+          </div>
+
+          <p>Please visit us during our working hours to collect your items.</p>
+          <p>See you soon!</p>
+        </div>
+        <div style="background-color: #f3f4f6; padding: 16px; text-align: center; color: #6b7280; font-size: 12px;">
+          ${env.APP_NAME} | <a href="${env.APP_URL}" style="color: #3b82f6;">${env.APP_URL}</a>
+        </div>
+      </div>
+    `;
+
+    return await this.sendEmail(
+      bill.customer.email,
+      `Clothes Ready for Collection - #${bill.billNumber}`,
+      emailHtml
+    );
   }
 
   async getNotificationHistory(billId?: string) {

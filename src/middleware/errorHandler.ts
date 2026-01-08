@@ -28,6 +28,11 @@ export const errorHandler = (
     return;
   }
 
+  if (err.name === 'SequelizeUniqueConstraintError') {
+    ApiResponseUtil.error(res, 'A record with this name already exists', 400);
+    return;
+  }
+
   if (err.name === 'ValidationError') {
     ApiResponseUtil.validationError(res, [err.message]);
     return;

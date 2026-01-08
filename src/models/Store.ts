@@ -3,6 +3,7 @@ import { User } from './User';
 import { Customer } from './Customer';
 import { Category } from './Category';
 import { Bill } from './Bill';
+import { ServiceType } from './ServiceType';
 import { StoreSetting } from './StoreSetting';
 import { Subscription } from './Subscription';
 
@@ -74,6 +75,9 @@ export class Store extends Model {
 
     @HasMany(() => Category)
     categories!: Category[];
+
+    @HasMany(() => ServiceType)
+    serviceTypes!: ServiceType[];
 
     @HasMany(() => StoreSetting)
     settings!: StoreSetting[];

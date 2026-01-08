@@ -53,10 +53,11 @@ export class StoreService {
       // Create default settings
       const defaultSettings = [
         { key: 'currency', value: 'INR' },
-        { key: 'tax_rate', value: '0' },
-        { key: 'bill_prefix', value: 'BILL' },
-        { key: 'sms_notifications', value: 'false' },
-        { key: 'whatsapp_notifications', value: 'false' },
+        { key: 'taxRate', value: '0' },
+        { key: 'billPrefix', value: 'BILL' },
+        { key: 'emailNotificationsEnabled', value: 'true' },
+        { key: 'smsNotificationsEnabled', value: 'false' },
+        { key: 'whatsappNotificationsEnabled', value: 'false' },
       ];
 
       await StoreSetting.bulkCreate(
@@ -187,16 +188,52 @@ export class StoreService {
   }
 
   async getStoreSettings(storeId: string) {
-    return await StoreSetting.findAll({
+    const settings = await StoreSetting.findAll({
       where: { storeId },
     });
+
+    const flatSettings: any = {};
+    settings.forEach(s => {
+      // Try to parse boolean values
+      let value: any = s.value;
+      if (value === 'true') value = true;
+      if (value === 'false') value = false;
+      flatSettings[s.key] = value;
+    });
+
+    return flatSettings;
   }
 
-  async updateStoreSettings(storeId: string, settings: { key: string; value: string }[]) {
+  async getStoreSetting(storeId: string, key: string, defaultValue: any = null) {
+    const setting = await StoreSetting.findOne({
+      where: { storeId, key },
+    });
+
+    if (!setting) return defaultValue;
+
+    let value: any = setting.value;
+    if (value === 'true') value = true;
+    if (value === 'false') value = false;
+    return value;
+  }
+
+  async updateStoreSettings(storeId: string, settings: any) {
     const transaction = await sequelize.transaction();
 
     try {
-      for (const setting of settings) {
+      // Normalize settings to an array of { key, value } pairs
+      let settingsArray: { key: string; value: string }[] = [];
+
+      if (Array.isArray(settings)) {
+        settingsArray = settings;
+      } else if (typeof settings === 'object' && settings !== null) {
+        settingsArray = Object.entries(settings).map(([key, value]) => ({
+          key,
+          value: String(value),
+        }));
+      }
+
+      for (const setting of settingsArray) {
         await StoreSetting.upsert({
           storeId,
           key: setting.key,

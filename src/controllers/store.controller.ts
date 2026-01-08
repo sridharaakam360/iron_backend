@@ -93,8 +93,19 @@ export class StoreController {
       if (!storeId) {
         throw new AppError('Store ID required', 400);
       }
+
+      const store = await storeService.getStoreById(storeId);
       const settings = await storeService.getStoreSettings(storeId);
-      ApiResponseUtil.success(res, settings);
+
+      // Combine store info and settings as expected by frontend
+      const result = {
+        ...settings,
+        isActive: store.isActive,
+        deactivationReason: store.deactivationReason,
+        subscription: store.subscriptions && store.subscriptions.find(s => s.status === 'ACTIVE')
+      };
+
+      ApiResponseUtil.success(res, result);
     } catch (error) {
       next(error);
     }

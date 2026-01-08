@@ -1,19 +1,18 @@
 import { Table, Column, Model, DataType, PrimaryKey, Default, ForeignKey, BelongsTo, HasMany, CreatedAt, UpdatedAt } from 'sequelize-typescript';
 import { Store } from './Store';
-import { BillItem } from './BillItem';
-import { ServiceType } from './ServiceType';
+import { Category } from './Category';
 
 @Table({
-    tableName: 'categories',
+    tableName: 'service_types',
     timestamps: true,
     indexes: [
         {
             unique: true,
-            fields: ['storeId', 'serviceTypeId', 'name'],
+            fields: ['storeId', 'name'],
         },
     ],
 })
-export class Category extends Model {
+export class ServiceType extends Model {
     @PrimaryKey
     @Default(DataType.UUIDV4)
     @Column(DataType.UUID)
@@ -26,32 +25,21 @@ export class Category extends Model {
     @BelongsTo(() => Store)
     store!: Store;
 
-    @ForeignKey(() => ServiceType)
-    @Column(DataType.UUID)
-    serviceTypeId?: string;
-
-    @BelongsTo(() => ServiceType)
-    serviceType?: ServiceType;
-
     @Column(DataType.STRING)
     name!: string;
-
-    @Column(DataType.DECIMAL(10, 2))
-    price!: number;
-
-    @Column(DataType.STRING)
-    icon?: string;
 
     @Default(true)
     @Column(DataType.BOOLEAN)
     isActive!: boolean;
 
     @CreatedAt
+    @Column
     createdAt!: Date;
 
     @UpdatedAt
+    @Column
     updatedAt!: Date;
 
-    @HasMany(() => BillItem)
-    billItems!: BillItem[];
+    @HasMany(() => Category)
+    categories!: Category[];
 }

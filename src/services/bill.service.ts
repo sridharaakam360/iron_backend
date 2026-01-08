@@ -6,6 +6,9 @@ import { AppError } from '../middleware/errorHandler';
 import { BillCreateInput, BillUpdateInput, DashboardStats } from '../types';
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
+import { NotificationService } from './notification.service';
+
+const notificationService = new NotificationService();
 
 export class BillService {
   async generateBillNumber(storeId: string): Promise<string> {
@@ -92,7 +95,9 @@ export class BillService {
         billNumber,
         customerId: customer.id,
         totalAmount,
-        status: BillStatus.PENDING,
+        status: input.status || BillStatus.PENDING,
+        paymentStatus: input.paymentStatus || 'PENDING',
+        paymentMethod: input.paymentMethod,
         notes: input.notes,
       }, { transaction });
 
@@ -102,6 +107,13 @@ export class BillService {
       );
 
       await transaction.commit();
+
+      // Trigger notification if paid
+      if (input.paymentStatus === 'PAID') {
+        notificationService.sendPaymentConfirmation(bill.id).catch(err =>
+          console.error(`Failed to send payment confirmation for bill ${bill.id}:`, err)
+        );
+      }
 
       const createdBill = await Bill.findByPk(bill.id, {
         include: [
@@ -208,9 +220,32 @@ export class BillService {
 
     if (input.status) {
       updateData.status = input.status;
-      if (input.status === 'COMPLETED') {
-        updateData.completedAt = new Date();
+      if (input.status === 'COMPLETED' || input.status === 'READY') {
+        if (input.status === 'COMPLETED') {
+          updateData.completedAt = new Date();
+        }
+
+        // Trigger collection reminder
+        notificationService.sendCollectionReminder(bill.id).catch(err =>
+          console.error(`Failed to send collection reminder for bill ${bill.id}:`, err)
+        );
       }
+    }
+
+    if (input.paymentStatus) {
+      const oldPaymentStatus = bill.paymentStatus;
+      updateData.paymentStatus = input.paymentStatus;
+
+      // Trigger confirmation if updated to PAID
+      if (input.paymentStatus === 'PAID' && oldPaymentStatus !== 'PAID') {
+        notificationService.sendPaymentConfirmation(bill.id).catch(err =>
+          console.error(`Failed to send payment confirmation for bill ${bill.id}:`, err)
+        );
+      }
+    }
+
+    if (input.paymentMethod) {
+      updateData.paymentMethod = input.paymentMethod;
     }
 
     if (input.notes !== undefined) {

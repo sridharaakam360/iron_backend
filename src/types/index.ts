@@ -43,10 +43,15 @@ export interface BillCreateInput {
     quantity: number;
   }[];
   notes?: string;
+  status?: 'PENDING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+  paymentStatus?: 'PENDING' | 'PAID';
+  paymentMethod?: 'CASH' | 'ONLINE' | 'UPI' | 'OTHER';
 }
 
 export interface BillUpdateInput {
-  status?: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+  status?: 'PENDING' | 'READY' | 'COMPLETED' | 'CANCELLED';
+  paymentStatus?: 'PENDING' | 'PAID';
+  paymentMethod?: 'CASH' | 'ONLINE' | 'UPI' | 'OTHER';
   notes?: string;
 }
 
@@ -68,6 +73,7 @@ export interface CategoryCreateInput {
   name: string;
   price: number;
   icon?: string;
+  serviceTypeId?: string;
 }
 
 export interface CategoryUpdateInput {
@@ -75,6 +81,7 @@ export interface CategoryUpdateInput {
   price?: number;
   icon?: string;
   isActive?: boolean;
+  serviceTypeId?: string;
 }
 
 export interface LoginInput {

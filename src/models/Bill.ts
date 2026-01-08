@@ -6,8 +6,21 @@ import { Notification } from './Notification';
 
 export enum BillStatus {
     PENDING = 'PENDING',
+    READY = 'READY',
     COMPLETED = 'COMPLETED',
     CANCELLED = 'CANCELLED',
+}
+
+export enum PaymentStatus {
+    PENDING = 'PENDING',
+    PAID = 'PAID',
+}
+
+export enum PaymentMethod {
+    CASH = 'CASH',
+    ONLINE = 'ONLINE',
+    UPI = 'UPI',
+    OTHER = 'OTHER',
 }
 
 @Table({
@@ -53,6 +66,14 @@ export class Bill extends Model {
     @Default(BillStatus.PENDING)
     @Column(DataType.ENUM(...Object.values(BillStatus)))
     status!: BillStatus;
+
+    @Index
+    @Default(PaymentStatus.PENDING)
+    @Column(DataType.ENUM(...Object.values(PaymentStatus)))
+    paymentStatus!: PaymentStatus;
+
+    @Column(DataType.ENUM(...Object.values(PaymentMethod)))
+    paymentMethod?: PaymentMethod;
 
     @Column(DataType.TEXT)
     notes?: string;

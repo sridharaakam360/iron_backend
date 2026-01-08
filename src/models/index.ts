@@ -9,3 +9,4 @@ export * from './Setting';
 export * from './StoreSetting';
 export * from './AuditLog';
 export * from './Subscription';
+export * from './ServiceType';

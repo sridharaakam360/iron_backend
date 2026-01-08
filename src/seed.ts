@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Store, User, UserRole, Category, Customer, StoreSetting, Subscription, SubscriptionPlan, SubscriptionStatus, BillingCycle } from './models';
+import { Store, User, UserRole, Category, Customer, StoreSetting, Subscription, SubscriptionPlan, SubscriptionStatus, BillingCycle, ServiceType } from './models';
 import { PasswordUtil } from './utils/password';
 import { sequelize } from './config/database';
 
@@ -58,17 +58,17 @@ async function main() {
         await StoreSetting.bulkCreate([
             {
                 storeId: (store as any).id,
-                key: 'notifications_email_enabled',
+                key: 'emailNotificationsEnabled',
                 value: 'true',
             },
             {
                 storeId: (store as any).id,
-                key: 'notifications_whatsapp_enabled',
+                key: 'whatsappNotificationsEnabled',
                 value: 'false',
             },
             {
                 storeId: (store as any).id,
-                key: 'notifications_sms_enabled',
+                key: 'smsNotificationsEnabled',
                 value: 'false',
             },
             {
@@ -80,17 +80,30 @@ async function main() {
 
         console.log('✅ Store notification settings created');
 
+        // Create Service Types
+        const ironingService = await ServiceType.create({
+            storeId: (store as any).id,
+            name: 'Ironing',
+        } as any);
+
+        const washingService = await ServiceType.create({
+            storeId: (store as any).id,
+            name: 'Washing',
+        } as any);
+
+        console.log('✅ Service Types created: Ironing, Washing');
+
         const categories = [
-            { name: 'Shirt', price: 15, icon: '👔' },
-            { name: 'Pants', price: 20, icon: '👖' },
-            { name: 'Lowers', price: 12, icon: '🩳' },
-            { name: 'Saree', price: 50, icon: '🥻' },
-            { name: 'Suit', price: 80, icon: '🤵' },
-            { name: 'Kurta', price: 25, icon: '👘' },
-            { name: 'Dress', price: 35, icon: '👗' },
-            { name: 'Blazer', price: 45, icon: '🧥' },
-            { name: 'T-Shirt', price: 10, icon: '👕' },
-            { name: 'Bedsheet', price: 30, icon: '🛏️' },
+            { name: 'Shirt', price: 15, icon: '👔', serviceTypeId: (ironingService as any).id },
+            { name: 'Pants', price: 20, icon: '👖', serviceTypeId: (ironingService as any).id },
+            { name: 'Lowers', price: 12, icon: '🩳', serviceTypeId: (ironingService as any).id },
+            { name: 'Saree', price: 50, icon: '🥻', serviceTypeId: (washingService as any).id },
+            { name: 'Suit', price: 80, icon: '🤵', serviceTypeId: (washingService as any).id },
+            { name: 'Kurta', price: 25, icon: '👘', serviceTypeId: (washingService as any).id },
+            { name: 'Dress', price: 35, icon: '👗', serviceTypeId: (washingService as any).id },
+            { name: 'Blazer', price: 45, icon: '🧥', serviceTypeId: (ironingService as any).id },
+            { name: 'T-Shirt', price: 10, icon: '👕', serviceTypeId: (ironingService as any).id },
+            { name: 'Bedsheet', price: 30, icon: '🛏️', serviceTypeId: (washingService as any).id },
         ];
 
         for (const cat of categories) {
@@ -99,6 +112,7 @@ async function main() {
                 name: cat.name,
                 price: cat.price,
                 icon: cat.icon,
+                serviceTypeId: cat.serviceTypeId,
             } as any);
         }
 
