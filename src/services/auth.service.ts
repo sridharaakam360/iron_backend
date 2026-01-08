@@ -96,6 +96,7 @@ export class AuthService {
         store: user.store ? {
           id: user.store.id,
           name: user.store.name,
+          logoUrl: user.store.logoUrl,
           isActive: user.store.isActive,
           deactivationReason: user.store.deactivationReason,
         } : undefined,

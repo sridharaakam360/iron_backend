@@ -9,6 +9,7 @@ import registerRoutes from './register.routes';
 import userRoutes from './user.routes';
 import adminRoutes from './admin.routes';
 import serviceTypeRoutes from './serviceType.routes';
+import uploadRoutes from './upload.routes';
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.use('/customers', customerRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/service-types', serviceTypeRoutes);
 router.use('/notifications', notificationRoutes);
+router.use('/upload', uploadRoutes);
 
 router.get('/health', (_req, res) => {
   res.json({
