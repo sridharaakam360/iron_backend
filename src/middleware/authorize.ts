@@ -2,7 +2,6 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../types';
 import { AppError } from './errorHandler';
 
-type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'EMPLOYEE';
 
 export const authorize = (roles: string[] = []) => {
   return (req: AuthRequest, _res: Response, next: NextFunction) => {
@@ -10,7 +9,7 @@ export const authorize = (roles: string[] = []) => {
       throw new AppError('Authentication required', 401);
     }
 
-    if (!roles.includes(req.user.role as UserRole)) {
+    if (!roles.includes(req.user.role as any)) {
       throw new AppError('Insufficient permissions', 403);
     }
 

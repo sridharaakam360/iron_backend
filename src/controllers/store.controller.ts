@@ -100,12 +100,27 @@ export class StoreController {
       // Combine store info and settings as expected by frontend
       const result = {
         ...settings,
+        name: store.name,
+        email: store.email,
+        phone: store.phone,
+        address: store.address,
+        logoUrl: store.logoUrl,
         isActive: store.isActive,
         deactivationReason: store.deactivationReason,
         subscription: store.subscriptions && store.subscriptions.find(s => s.status === 'ACTIVE')
       };
 
       ApiResponseUtil.success(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMyStore(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const storeId = req.user?.storeId!;
+      const store = await storeService.updateStore(storeId, req.body);
+      ApiResponseUtil.success(res, store, 'Store updated successfully');
     } catch (error) {
       next(error);
     }

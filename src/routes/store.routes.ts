@@ -33,6 +33,11 @@ const registerValidation = [
 
 router.post('/register', registerValidation, validate, storeController.registerStore);
 
+// Settings routes - Admin can access their own store settings
+router.get('/settings/my-store', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'EMPLOYEE']), storeController.getStoreSettings);
+router.put('/settings/my-store', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), storeController.updateStoreSettings);
+router.put('/my-store', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), storeController.updateMyStore);
+
 // Protected routes - SuperAdmin only
 router.get('/', authenticate, authorize(['SUPER_ADMIN']), storeController.getAllStores);
 router.get('/:id', authenticate, authorize(['SUPER_ADMIN']), storeController.getStoreById);
@@ -40,9 +45,5 @@ router.post('/:id/approve', authenticate, authorize(['SUPER_ADMIN']), storeContr
 router.post('/:id/reject', authenticate, authorize(['SUPER_ADMIN']), storeController.rejectStore);
 router.put('/:id', authenticate, authorize(['SUPER_ADMIN']), storeController.updateStore);
 router.post('/:id/toggle-status', authenticate, authorize(['SUPER_ADMIN']), storeController.toggleStoreStatus);
-
-// Settings routes - Admin can access their own store settings
-router.get('/settings/my-store', authenticate, authorize(['SUPER_ADMIN', 'ADMIN', 'EMPLOYEE']), storeController.getStoreSettings);;
-router.put('/settings/my-store', authenticate, authorize(['ADMIN']), storeController.updateStoreSettings);
 
 export default router;

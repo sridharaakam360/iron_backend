@@ -7,6 +7,7 @@ import { BillCreateInput, BillUpdateInput, DashboardStats } from '../types';
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database';
 import { NotificationService } from './notification.service';
+import { NotificationType } from '../models/Notification';
 
 const notificationService = new NotificationService();
 
@@ -42,19 +43,28 @@ export class BillService {
     const transaction = await sequelize.transaction();
 
     try {
-      let customer = await Customer.findOne({
-        where: { storeId, phone: input.customerPhone },
-        transaction,
-      });
+      let customer;
 
-      if (!customer) {
-        customer = await Customer.create({
-          storeId,
-          name: input.customerName,
-          phone: input.customerPhone,
-          email: input.customerEmail,
-          address: input.customerAddress,
-        } as any, { transaction });
+      if (input.customerId) {
+        customer = await Customer.findByPk(input.customerId, { transaction });
+        if (!customer) {
+          throw new AppError('Customer not found', 404);
+        }
+      } else {
+        customer = await Customer.findOne({
+          where: { storeId, phone: input.customerPhone },
+          transaction,
+        });
+
+        if (!customer) {
+          customer = await Customer.create({
+            storeId,
+            name: input.customerName,
+            phone: input.customerPhone,
+            email: input.customerEmail,
+            address: input.customerAddress,
+          } as any, { transaction });
+        }
       }
 
       const billNumber = await this.generateBillNumber(storeId);
@@ -107,6 +117,17 @@ export class BillService {
       );
 
       await transaction.commit();
+
+      // Trigger notification
+      notificationService.sendBillNotification(bill.id, NotificationType.SMS).catch(err =>
+        console.error(`Failed to send initial SMS for bill ${bill.id}:`, err)
+      );
+      notificationService.sendBillNotification(bill.id, NotificationType.WHATSAPP).catch(err =>
+        console.error(`Failed to send initial WhatsApp for bill ${bill.id}:`, err)
+      );
+      notificationService.sendBillNotification(bill.id, NotificationType.EMAIL).catch(err =>
+        console.error(`Failed to send initial Email for bill ${bill.id}:`, err)
+      );
 
       // Trigger notification if paid
       if (input.paymentStatus === 'PAID') {
@@ -225,9 +246,12 @@ export class BillService {
           updateData.completedAt = new Date();
         }
 
-        // Trigger collection reminder
-        notificationService.sendCollectionReminder(bill.id).catch(err =>
-          console.error(`Failed to send collection reminder for bill ${bill.id}:`, err)
+        // Trigger notification when ready/completed
+        notificationService.sendBillNotification(bill.id, NotificationType.SMS).catch(err =>
+          console.error(`Failed to send status SMS for bill ${bill.id}:`, err)
+        );
+        notificationService.sendBillNotification(bill.id, NotificationType.WHATSAPP).catch(err =>
+          console.error(`Failed to send status WhatsApp for bill ${bill.id}:`, err)
         );
       }
     }

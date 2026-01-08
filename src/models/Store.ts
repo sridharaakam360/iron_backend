@@ -43,6 +43,9 @@ export class Store extends Model {
     @Column(DataType.STRING)
     gstNumber?: string;
 
+    @Column(DataType.STRING)
+    logoUrl?: string;
+
     @Index
     @Default(false)
     @Column(DataType.BOOLEAN)

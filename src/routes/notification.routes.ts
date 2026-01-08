@@ -8,7 +8,7 @@ const router = Router();
 const notificationController = new NotificationController();
 
 const sendNotificationValidation = [
-  body('type').isIn(['SMS', 'EMAIL']).withMessage('Type must be SMS or EMAIL'),
+  body('type').isIn(['SMS', 'EMAIL', 'WHATSAPP']).withMessage('Type must be SMS, EMAIL or WHATSAPP'),
 ];
 
 router.post('/bills/:billId/send', authenticate, validate(sendNotificationValidation), notificationController.sendBillNotification.bind(notificationController));

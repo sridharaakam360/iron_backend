@@ -36,6 +36,7 @@ export interface ApiResponse<T = any> {
 export interface BillCreateInput {
   customerName: string;
   customerPhone: string;
+  customerId?: string;
   customerEmail?: string;
   customerAddress?: string;
   items: {
